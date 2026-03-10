@@ -12,11 +12,15 @@
 #define A3_CENTER 778   
 #define A3_HIGH 1023
 
-int mapStick(int val, int low, int center, int high) {
+float mapFloat(float val, float fromLow, float fromHigh, float toLow, float toHigh) {
+  return (val - fromLow) * (toHigh - toLow) / (fromHigh - fromLow) + toLow;
+}
+
+float mapStick(float val, float low, float center, float high) {
   if (val < center)
-    return map(val, low, center, -512, 0);
+    return mapFloat(val, low, center, -32767, 0);
   else
-    return map(val, center, high, 0, 512);
+    return mapFloat(val, center, high, 0, 32767);
 }
 
 void setup() {
@@ -24,21 +28,35 @@ void setup() {
 }
 
 void loop() {
-  int yaw      = mapStick(analogRead(A0), A0_LOW, A0_CENTER, A0_HIGH);
-  int throttle = mapStick(analogRead(15),  A1_LOW, A1_CENTER, A1_HIGH);
-  int pitch    = mapStick(analogRead(A2), A2_LOW, A2_CENTER, A2_HIGH);
-  int roll     = mapStick(analogRead(A3), A3_LOW, A3_CENTER, A3_HIGH);
+  // Read ONCE, use everywhere
+  float rawA0 = analogRead(A0);
+  float rawA1 = analogRead(15);
+  float rawA2 = analogRead(A2);
+  float rawA3 = analogRead(A3);
 
-  Joystick.X(      roll);
-  Joystick.Y(      pitch);
-  Joystick.Z(      throttle);
+  float yaw      = mapStick(rawA0, A0_LOW, A0_CENTER, A0_HIGH);
+  float throttle = mapStick(rawA1, A1_LOW, A1_CENTER, A1_HIGH);
+  float pitch    = mapStick(rawA2, A2_LOW, A2_CENTER, A2_HIGH);
+  float roll     = mapStick(rawA3, A3_LOW, A3_CENTER, A3_HIGH);
+
+  Joystick.X(roll);
+  Joystick.Y(pitch);
+  Joystick.Z(throttle);
   Joystick.Zrotate(yaw);
   Joystick.send_now();
 
-  Serial.print("Y:"); Serial.print(yaw);
-  Serial.print("  T:"); Serial.print(throttle);
-  Serial.print("  P:"); Serial.print(pitch);
-  Serial.print("  R:"); Serial.println(roll);
+  Serial.print("RAW: ");
+  Serial.print(rawA0); Serial.print(" ");
+  Serial.print(rawA1); Serial.print(" ");
+  Serial.print(rawA2); Serial.print(" ");
+  Serial.println(rawA3);
+
+  Serial.print("MAP: ");
+  Serial.print(yaw);      Serial.print(" ");
+  Serial.print(throttle); Serial.print(" ");
+  Serial.print(pitch);    Serial.print(" ");
+  Serial.println(roll);
+  Serial.println("---");
 
   delay(10);
 }
