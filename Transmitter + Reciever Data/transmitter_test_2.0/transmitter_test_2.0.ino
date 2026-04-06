@@ -24,10 +24,10 @@ const byte address[6] = "00001"; // Must match the receiver [cite: 19]
 
 // Define a structure to hold all 4 joystick values
 struct ControlData {
-  int throttle;
-  int yaw;
-  int pitch;
-  int roll;
+  int16_t throttle;
+  int16_t yaw;
+  int16_t pitch;
+  int16_t roll;
 };
 
 ControlData data; // Create an instance of our data structure
