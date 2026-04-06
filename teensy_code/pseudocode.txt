@@ -1,0 +1,107 @@
+Include Libraries
+
+Variables
+    max roll = 60 d/s
+    max pitch = 60 d/s
+    max yaw = 30 d/s
+
+    current roll, pitch, yaw
+    desired roll, pitch, yaw
+
+    P values roll, pitch, yaw  //variables that you can toggle to adjust the sensitivity of the PID loop
+    I values roll, pitch, yaw
+    D values roll, pitch, yaw
+
+
+Radio Setup 
+    pins
+
+Gyro Setup
+    pins
+
+Generic functions for readability
+    read_radio()
+        read in values for t, y, p, and r // 0 - 1023
+        map values to desired y, p, and r rate in degrees/sec // this will be based on the variables from above
+
+    read_gyro()
+        fetch y, p, and r values  // + or - 32,767
+        based on 3, 2, or 1 setup of the gryo map this to degree/second
+        return r, p, y rates (degrees/second)
+
+    calculate_PID()
+        error = target - current;
+        p_term = P * error
+        I_term = I * error * 0.004 //this would be the timing part of the PID loop
+        d_term = D * (error - pPrev_error) / 0.004; //this would be the derivative part of the loop so timing is also important
+        pPrev_error = error; //setting the error for the next loop
+        return (p_term + I_term + d_term)  //the example code constrains this value to + or - 400... not sure why or if you need it
+   
+    mix_motors()
+        m1 = throttle + roll_output + pitch_output - yaw_output;
+        m2 = throttle - roll_output + pitch_output + yaw_output;
+        m3 = throttle - roll_output - pitch_output - yaw_output;
+        m4 = throttle + roll_output - pitch_output + yaw_output;
+        return m1, m2, m3, m4
+
+    write_motors(m1, m2, m3, m4)
+        analogWrite(1, constrain(m1, 1000, 2000)); 
+        analogWrite(2, constrain(m2, 1000, 2000));
+        analogWrite(3, constrain(m3, 1000, 2000));
+        analogWrite(4, constrain(m4, 1000, 2000));
+
+
+    check_fail_safe()
+
+
+
+Setup()
+    Setup serial communication
+
+    initialize the radio communication
+    calibrate the radio readings
+        loop i = 0, i < 100, i++
+            sum t, r, p, y
+        divide t, r, p, y by 100
+        store center value for t, r, p, y
+        send back data for the center values to the controller that you can print out somehow or show on a screen...
+
+    initialize the Gyro
+    calibrate the Gyro
+
+
+Loop()
+    Read in the sensor data
+        t, r, p, y = read_gyro()
+
+    Read in the radio data
+        r, p, y = read_radio()
+
+    apply PID control loop for r,p,y
+        roll_output = calculate_PID(desiredRoll, currentRoll,... )
+        pitch_output = calculate_PID()
+        yaw_output = calculate_PID()
+
+    mix PID corrective data
+        mix_motors(roll_output, pitch_output, yaw_output)
+
+    apply safety clamp so PWM signal does not go too high or too low on ESC
+
+    Write new pwm signal to each of the motors
+        analogWrite(m1, value1)
+        analogWrite(m2, value2)
+        analogWrite(m3, value3)
+        analogWrite(m4, value4)
+
+    timing for the PID loop must be accurate [loop timer goes here]
+        you basically want to run this pid loop every 0.004 seconds so that the integral and derivative parts of the PID function operate correctly
+
+    current/battery percentage calculations
+        calculate the current drawn by summing the current over time 
+        subtract current drawn from the total amp hours of batteries
+        determine battery life
+        if batteries too low
+            send a notification back to the controller or perhaps turn on LED
+
+
+        
