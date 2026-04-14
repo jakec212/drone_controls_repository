@@ -9,6 +9,30 @@
 //max and min roll and pitch Rate degrees/s (60 degrees/s max)(connect the 1023 from the joystick to what the input should be)
 //max and min yaw rate degrees/s (30 degrees/s max)
 
+// --- Target Rates (Degrees per Second) ---
+const float MAX_RP_RATE = 60.0; // Max Roll/Pitch rate
+const float MAX_Y_RATE = 30.0;  // Max Yaw rate
+
+// --- PID Gains (Start with these, then tune) ---
+float P_RateRoll = 0.6, I_RateRoll = 3.5, D_RateRoll = 0.03;
+float P_RatePitch = 0.6, I_RatePitch = 3.5, D_RatePitch = 0.03;
+float P_RateYaw = 2.0, I_RateYaw = 12.0, D_RateYaw = 0.0;
+
+// --- PID State Variables ---
+float ErrorRateRoll, ErrorRatePitch, ErrorRateYaw;
+float ItermRoll, ItermPitch, ItermYaw;
+float PrevErrorRoll, PrevErrorPitch, PrevErrorYaw;
+float PIDRoll, PIDPitch, PIDYaw;
+
+// --- Joystick Calibration ---
+int16_t rollCenter = 512, pitchCenter = 512, yawCenter = 512;
+const int DEADZONE = 10; // Ignore small stick movements near center
+
+// --- Timing ---
+uint32_t LoopTimer;
+
+
+
 
 
 // --- Radio Setup ---
@@ -28,6 +52,9 @@ ControlData incomingData;
 MPU6050 mpu(Wire);
 unsigned long timer = 0;
 
+
+
+
 void setup() {
   Serial.begin(115200);
   Wire.begin();
@@ -46,7 +73,31 @@ void setup() {
   //read like 100 values and take the average and store that as a center value
   //plus or minus 5 or 10 of that center value should be a zero as well.
 
-  //set center joystick values with a safe range
+  // --- Joystick Calibration ---
+  Serial.println("Calibrating Joysticks... Leave sticks centered.");
+  long sumRoll = 0, sumPitch = 0, sumYaw = 0;
+  for (int i = 0; i < 100; i++) {
+    if (radio.available()) {
+      radio.read(&incomingData, sizeof(incomingData));
+    }
+    sumRoll += incomingData.roll;
+    sumPitch += incomingData.pitch;
+    sumYaw += incomingData.yaw;
+    delay(10);
+  }
+  rollCenter = sumRoll / 100;
+  pitchCenter = sumPitch / 100;
+  yawCenter = sumYaw / 100;
+  
+  // Set Teensy PWM frequency for ESCs (standard is 400Hz or 490Hz)
+  analogWriteFrequency(1, 400); // Pins for motors
+  analogWriteFrequency(2, 400);
+  analogWriteFrequency(3, 400);
+  analogWriteFrequency(4, 400);
+  analogWriteResolution(12); // 0-4095 range for finer control
+  
+  LoopTimer = micros(); // Start the flight loop timer
+
 
 
   // 2. Initialize MPU6050
@@ -67,6 +118,9 @@ void setup() {
   mpu.calcOffsets(); 
   Serial.println("Ready.");
 }
+
+
+
 
 void loop() {
   // Read sensor data

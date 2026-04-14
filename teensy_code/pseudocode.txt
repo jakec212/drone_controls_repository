@@ -72,10 +72,10 @@ Setup()
 
 Loop()
     Read in the sensor data
-        t, r, p, y = read_gyro()
+        r, p, y = read_gyro()
 
     Read in the radio data
-        r, p, y = read_radio()
+       t, r, p, y = read_radio()
 
     apply PID control loop for r,p,y
         roll_output = calculate_PID(desiredRoll, currentRoll,... )
@@ -84,8 +84,6 @@ Loop()
 
     mix PID corrective data
         mix_motors(roll_output, pitch_output, yaw_output)
-
-    apply safety clamp so PWM signal does not go too high or too low on ESC
 
     Write new pwm signal to each of the motors
         analogWrite(m1, value1)
