@@ -28,6 +28,7 @@ float ErrorRateRoll, ErrorRatePitch, ErrorRateYaw;
 float ItermRoll, ItermPitch, ItermYaw;
 float PrevErrorRoll, PrevErrorPitch, PrevErrorYaw;
 float PIDRoll, PIDPitch, PIDYaw;
+float throttleCommand = 1000.0f;                        //THROTTLE COMMAND TO BE SENT TO THE MOTORS
 
 //======= CONTROL VARIABLES =========
 const int DEADZONE = 20;
@@ -36,6 +37,10 @@ const uint16_t PRINT_INTERVAL_MS = 20;  // 50 Hz telemetry
 const uint8_t GYRO_CONFIG = 3;          // 0=250, 1=500, 2=1000, 3=2000 deg/s
 const float PID_DT = 0.004f;            // 250 Hz control loop timing
 const float PID_LIMIT = 400.0f;
+
+//========================= MAX AND MIN PWM SIGNALS THAT ARE TO BE SENT TO THE MOTORS ============================
+const int THROTTLE_MIN_CMD = 1000;
+const int THROTTLE_MAX_CMD = 2000;
 
 int16_t rollCenter = 512;
 int16_t pitchCenter = 512;
@@ -55,6 +60,15 @@ struct __attribute__((packed)) ControlData {
   int16_t roll;
 };
 ControlData incomingData = {512, 512, 512, 512};
+
+//=========================================== MOTOR OUTPUTS STRUCT DATA TYPE ================================
+struct MotorOutputs {
+  float m1;
+  float m2;
+  float m3;
+  float m4;
+};
+MotorOutputs motors = {1000, 1000, 1000, 1000};
 
 
 //======================================= MPU6050 SETUP =================================================
@@ -82,8 +96,8 @@ void read_gyro() {
 
   // Axis convention used here:
   // X -> roll rate, Y -> pitch rate, Z -> yaw rate
-  currentPitch = mpu.getGyroX();
-  currentRoll  = mpu.getGyroY();
+  currentPitch = mpu.getGyroY();
+  currentRoll  = mpu.getGyroX();
   currentYaw   = -mpu.getGyroZ(); //this negative accounts for ccw being positive and cw being negative naturally with the drone orientation
 }
 
@@ -117,6 +131,20 @@ float calculate_PID(float desired, float current,
 
   float output = pTerm + iTerm + dTerm;
   return constrain(output, -PID_LIMIT, PID_LIMIT);
+}
+
+//========== MIX MOTORS FUNCTION ==============
+MotorOutputs mix_motors(float throttle, float rollOutput, float pitchOutput, float yawOutput) {
+  MotorOutputs m;
+  // Motor spin directions:
+  // M1, M4 = CCW   M2, M3 = CW
+  // Positive yaw command -> CW body yaw.
+  // So increase CCW motors (M1,M4) and decrease CW motors (M2,M3).
+  m.m1 = throttle + rollOutput + pitchOutput + yawOutput;
+  m.m2 = throttle - rollOutput + pitchOutput - yawOutput;
+  m.m3 = throttle - rollOutput - pitchOutput - yawOutput;
+  m.m4 = throttle + rollOutput - pitchOutput + yawOutput;
+  return m;
 }
 
 //=========== JOYSTICK CALIBRATION FUNCTION =================
@@ -242,6 +270,15 @@ void loop() {
                          PRateYaw, IRateYaw, DRateYaw,
                          PrevErrorYaw, ItermYaw);
 
+  //======== STEP 4 - MIX PID OUTPUTS INTO MOTOR COMMANDS ================ (THIS IS ALSO WHERE THE THROTTLE IS MAPPED FROM ITS LOW VALUE OF 33 ANALOG TO 990 ANALOG)
+  throttleCommand = map((int)desiredThrottle, 33, 990, THROTTLE_MIN_CMD, THROTTLE_MAX_CMD);
+  motors = mix_motors(throttleCommand, PIDRoll, PIDPitch, PIDYaw);
+
+
+
+
+
+
   //======= SERIAL PRINT AT 50Hz FOR DEBUGGING PURPOSES ============
   if (millis() - timer >= PRINT_INTERVAL_MS) {
     bool radioLinkOk = (millis() - lastRadioPacketMs) < 250;
@@ -275,7 +312,16 @@ void loop() {
     Serial.print(",");
     Serial.print(PIDPitch, 1);
     Serial.print(",");
-    Serial.println(PIDYaw, 1);
+    Serial.print(PIDYaw, 1);
+
+    Serial.print(" Mix M1-4:");
+    Serial.print(motors.m1, 1);
+    Serial.print(",");
+    Serial.print(motors.m2, 1);
+    Serial.print(",");
+    Serial.print(motors.m3, 1);
+    Serial.print(",");
+    Serial.println(motors.m4, 1);
 
     timer = millis();
   }
