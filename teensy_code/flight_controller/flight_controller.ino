@@ -34,6 +34,8 @@ const int DEADZONE = 20;
 const uint8_t RF_CHANNEL = 108;
 const uint16_t PRINT_INTERVAL_MS = 20;  // 50 Hz telemetry
 const uint8_t GYRO_CONFIG = 3;          // 0=250, 1=500, 2=1000, 3=2000 deg/s
+const float PID_DT = 0.004f;            // 250 Hz control loop timing
+const float PID_LIMIT = 400.0f;
 
 int16_t rollCenter = 512;
 int16_t pitchCenter = 512;
@@ -96,6 +98,25 @@ void read_radio() {
   desiredPitch = mapStickToRate(incomingData.pitch, pitchCenter, MAX_RP_RATE);
   desiredYaw   = mapStickToRate(incomingData.yaw,   yawCenter,   MAX_Y_RATE);
   desiredThrottle = incomingData.throttle;
+}
+
+//========== CALCULATE PID (ONE AXIS) ==============
+float calculate_PID(float desired, float current,
+                    float kP, float kI, float kD,
+                    float &prevError, float &iTerm) {
+  float error = desired - current;
+
+  float pTerm = kP * error;
+
+  // Trapezoidal integral + anti-windup clamp
+  iTerm += kI * (error + prevError) * PID_DT * 0.5f;
+  iTerm = constrain(iTerm, -PID_LIMIT, PID_LIMIT);
+
+  float dTerm = kD * (error - prevError) / PID_DT;
+  prevError = error;
+
+  float output = pTerm + iTerm + dTerm;
+  return constrain(output, -PID_LIMIT, PID_LIMIT);
 }
 
 //=========== JOYSTICK CALIBRATION FUNCTION =================
@@ -210,6 +231,17 @@ void loop() {
     desiredThrottle = incomingData.throttle;
   }
 
+  //======== STEP 3 - APPLY PID FOR ROLL/PITCH/YAW =========
+  PIDRoll = calculate_PID(desiredRoll, currentRoll,
+                          PRateRoll, IRateRoll, DRateRoll,
+                          PrevErrorRoll, ItermRoll);
+  PIDPitch = calculate_PID(desiredPitch, currentPitch,
+                           PRatePitch, IRatePitch, DRatePitch,
+                           PrevErrorPitch, ItermPitch);
+  PIDYaw = calculate_PID(desiredYaw, currentYaw,
+                         PRateYaw, IRateYaw, DRateYaw,
+                         PrevErrorYaw, ItermYaw);
+
   //======= SERIAL PRINT AT 50Hz FOR DEBUGGING PURPOSES ============
   if (millis() - timer >= PRINT_INTERVAL_MS) {
     bool radioLinkOk = (millis() - lastRadioPacketMs) < 250;
@@ -236,7 +268,14 @@ void loop() {
     Serial.print(",");
     Serial.print(currentRoll, 1);
     Serial.print(",");
-    Serial.println(currentYaw, 1);
+    Serial.print(currentYaw, 1);
+
+    Serial.print(" PID RPY:");
+    Serial.print(PIDRoll, 1);
+    Serial.print(",");
+    Serial.print(PIDPitch, 1);
+    Serial.print(",");
+    Serial.println(PIDYaw, 1);
 
     timer = millis();
   }
