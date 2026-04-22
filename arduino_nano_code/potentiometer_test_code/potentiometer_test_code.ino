@@ -3,7 +3,7 @@
   Reads analog input from pin A5 and prints to Serial Monitor.
 */
 
-const int potPin = A5; // Pin connected to the slider wiper
+const int potPin = A2; // Pin connected to the slider wiper
 
 void setup() {
   // Initialize serial communication at 115200 bits per second:
