@@ -31,16 +31,29 @@ float PIDRoll, PIDPitch, PIDYaw;
 float throttleCommand = 1000.0f;                        //THROTTLE COMMAND TO BE SENT TO THE MOTORS
 
 //======= CONTROL VARIABLES =========
-const int DEADZONE = 20;
+const int DEADZONE = 15;
 const uint8_t RF_CHANNEL = 108;
-const uint16_t PRINT_INTERVAL_MS = 20;  // 50 Hz telemetry
+const uint16_t PRINT_INTERVAL_MS = 20;  // 50 Hz DEBUGGING telemetry
 const uint8_t GYRO_CONFIG = 3;          // 0=250, 1=500, 2=1000, 3=2000 deg/s
+
 const float PID_DT = 0.004f;            // 250 Hz control loop timing
 const float PID_LIMIT = 400.0f;
+
+const uint32_t LOOP_US = 4000;          // 4 ms loop target
+const int MOTOR_PWM_FREQ_HZ = 200;
+const int PWM_RES_BITS = 12;
+const int PWM_MAX_COUNTS = (1 << PWM_RES_BITS) - 1; // 4095 for 12-bit
+uint32_t loopTimerUs = 0;
 
 //========================= MAX AND MIN PWM SIGNALS THAT ARE TO BE SENT TO THE MOTORS ============================
 const int THROTTLE_MIN_CMD = 1000;
 const int THROTTLE_MAX_CMD = 2000;
+
+//========================= DEFINING THE MOTOR PINS ON THE TEENSY 4.0 =====================
+const int MOTOR1_PIN = 1;
+const int MOTOR2_PIN = 2;
+const int MOTOR3_PIN = 3;
+const int MOTOR4_PIN = 4;
 
 int16_t rollCenter = 512;
 int16_t pitchCenter = 512;
@@ -75,7 +88,6 @@ MotorOutputs motors = {1000, 1000, 1000, 1000};
 MPU6050 mpu(Wire);
 unsigned long timer = 0;
 unsigned long lastRadioPacketMs = 0;
-
 
 //================================ GENERIC FUNCTIONS FOR READABILITY =======================================
 
@@ -145,6 +157,27 @@ MotorOutputs mix_motors(float throttle, float rollOutput, float pitchOutput, flo
   m.m3 = throttle - rollOutput - pitchOutput - yawOutput;
   m.m4 = throttle + rollOutput - pitchOutput + yawOutput;
   return m;
+}
+
+//========== PWM MATH FOR 200 HZ OUTPUT ==============
+int pwmCommandToDutyCounts(float pwmCommandUs) {
+  float clampedUs = constrain(pwmCommandUs, (float)THROTTLE_MIN_CMD, (float)THROTTLE_MAX_CMD);
+  float periodUs = 1000000.0f / (float)MOTOR_PWM_FREQ_HZ;
+  float dutyCounts = (clampedUs / periodUs) * (float)PWM_MAX_COUNTS;
+  return (int)constrain(dutyCounts, 0.0f, (float)PWM_MAX_COUNTS);
+}
+
+//========== WRITE MIXED VALUES TO MOTORS ==============
+void write_motors(const MotorOutputs &m) {
+  float m1Cmd = constrain(m.m1, (float)THROTTLE_MIN_CMD, (float)THROTTLE_MAX_CMD);
+  float m2Cmd = constrain(m.m2, (float)THROTTLE_MIN_CMD, (float)THROTTLE_MAX_CMD);
+  float m3Cmd = constrain(m.m3, (float)THROTTLE_MIN_CMD, (float)THROTTLE_MAX_CMD);
+  float m4Cmd = constrain(m.m4, (float)THROTTLE_MIN_CMD, (float)THROTTLE_MAX_CMD);
+
+  analogWrite(MOTOR1_PIN, pwmCommandToDutyCounts(m1Cmd));
+  analogWrite(MOTOR2_PIN, pwmCommandToDutyCounts(m2Cmd));
+  analogWrite(MOTOR3_PIN, pwmCommandToDutyCounts(m3Cmd));
+  analogWrite(MOTOR4_PIN, pwmCommandToDutyCounts(m4Cmd));
 }
 
 //=========== JOYSTICK CALIBRATION FUNCTION =================
@@ -237,6 +270,16 @@ void setup() {
 
     Serial.println("Flight controller sensor/radio test ready.");
     timer = millis();
+
+    //================== SETTING UP PWM FREQUENCY FOR EACH OF THE MOTOR PINS ====================
+    analogWriteFrequency(MOTOR1_PIN, MOTOR_PWM_FREQ_HZ);
+    analogWriteFrequency(MOTOR2_PIN, MOTOR_PWM_FREQ_HZ);
+    analogWriteFrequency(MOTOR3_PIN, MOTOR_PWM_FREQ_HZ);
+    analogWriteFrequency(MOTOR4_PIN, MOTOR_PWM_FREQ_HZ);
+    analogWriteResolution(PWM_RES_BITS);
+
+    //=========== INITIALIZING THE PID LOOP TIMER COUNTER ============
+    loopTimerUs = micros();
 }
 
 //======================================= ARDUINO LOOP FUNCTION =======================================
@@ -274,6 +317,8 @@ void loop() {
   throttleCommand = map((int)desiredThrottle, 33, 990, THROTTLE_MIN_CMD, THROTTLE_MAX_CMD);
   motors = mix_motors(throttleCommand, PIDRoll, PIDPitch, PIDYaw);
 
+  //======== STEP 5 - WRITE PWM SIGNALS TO THE MOTORS =========
+  write_motors(motors);
 
 
 
@@ -286,6 +331,8 @@ void loop() {
     Serial.print(radioLinkOk ? "OK" : "NO_PACKET");
     Serial.print(" Raw T:");
     Serial.print(incomingData.throttle);
+    Serial.print(" ThrCmd:");
+    Serial.print(throttleCommand, 1);
     Serial.print(" Y:");
     Serial.print(incomingData.yaw);
     Serial.print(" P:");
@@ -325,4 +372,12 @@ void loop() {
 
     timer = millis();
   }
+
+  //======== STEP 6 - LOCK LOOP RATE TO 4 ms (250 Hz) =========
+  while ((micros() - loopTimerUs) < LOOP_US) {
+    // wait
+  }
+
+  //======== RESET THE LOOP TIMER AND THEN RERUN THE PID LOOP ========
+  loopTimerUs = micros();
 }
