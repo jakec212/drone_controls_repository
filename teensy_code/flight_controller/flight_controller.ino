@@ -27,7 +27,7 @@ float PrevErrorRoll, PrevErrorPitch, PrevErrorYaw;
 float PIDRoll, PIDPitch, PIDYaw;
 
 //======= CONTROL VARIABLES =========
-const int DEADZONE = 10;
+const int DEADZONE = 20;
 const uint8_t RF_CHANNEL = 108;
 const uint16_t PRINT_INTERVAL_MS = 20;  // 50 Hz telemetry
 
@@ -83,7 +83,45 @@ void read_radio() {
   desiredThrottle = incomingData.throttle;
 }
 
+//=========== JOYSTICK CALIBRATION FUNCTION =================
+bool calibrate_radio_centers(uint16_t sampleCount = 100, uint32_t timeoutMs = 3000) {
+  Serial.println("Center all sticks now. Calibrating radio centers...");
 
+  long sumRoll = 0;
+  long sumPitch = 0;
+  long sumYaw = 0;
+  uint16_t got = 0;
+  uint32_t t0 = millis();
+
+  while (got < sampleCount && (millis() - t0) < timeoutMs) {
+    if (radio.available()) {
+      // Keep newest packet in case multiple are queued
+      while (radio.available()) {
+        radio.read(&incomingData, sizeof(incomingData));
+      }
+
+      sumRoll  += incomingData.roll;
+      sumPitch += incomingData.pitch;
+      sumYaw   += incomingData.yaw;
+      got++;
+    }
+  }
+
+  if (got == 0) {
+    Serial.println("Calibration failed: no radio packets received.");
+    return false;
+  }
+
+  rollCenter  = (int16_t)(sumRoll  / got);
+  pitchCenter = (int16_t)(sumPitch / got);
+  yawCenter   = (int16_t)(sumYaw   / got);
+
+  Serial.print("Center values -> Roll: ");  Serial.print(rollCenter);
+  Serial.print(" Pitch: ");                 Serial.print(pitchCenter);
+  Serial.print(" Yaw: ");                   Serial.println(yawCenter);
+
+  return true;
+}
 
 
 
@@ -109,14 +147,26 @@ void setup() {
     radio.setChannel(RF_CHANNEL);
     radio.startListening();
 
-    //===== SETUP MPU6050 =====
-    mpu.setGyroConfig(1); // +/-500 deg/s
+    //====== RADIO JOYSTICK CALIBRATION ========
+    delay(1500);  // give you a moment to release sticks to center
+    if (!calibrate_radio_centers(100, 4000)) {
+        // Fallback if calibration fails
+        rollCenter = 512;
+        pitchCenter = 512;
+        yawCenter = 512;
+    }
+
+    //======== SETUP AND CONFIGURE GYRO ===========
+    // GYRO_SENSITIVITY 0 = +/-250 deg/s, 1 = +/-500 deg/s, 2 = +/-1000 deg/s, 3 = +/-2000 deg/s
+    mpu.setGyroConfig(3); 
     byte mpuStatus = mpu.begin();
     if (mpuStatus != 0) {
       Serial.print("MPU Error: ");
       Serial.println(mpuStatus);
       while (1);
     }
+
+    //======== CALIBRATE THE GYRO(MPU6050) ==========
     Serial.println("Calibrating MPU6050. Keep drone still...");
     delay(1000);
     mpu.calcOffsets();
