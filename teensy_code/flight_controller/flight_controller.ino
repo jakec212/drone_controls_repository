@@ -20,6 +20,9 @@ float desiredRoll = 0.0f;
 float desiredPitch = 0.0f;
 float desiredYaw = 0.0f;
 float desiredThrottle = 0.0f;
+float currentRoll = 0.0f;
+float currentPitch = 0.0f;
+float currentYaw = 0.0f;
 
 float ErrorRateRoll, ErrorRatePitch, ErrorRateYaw;
 float ItermRoll, ItermPitch, ItermYaw;
@@ -30,6 +33,7 @@ float PIDRoll, PIDPitch, PIDYaw;
 const int DEADZONE = 20;
 const uint8_t RF_CHANNEL = 108;
 const uint16_t PRINT_INTERVAL_MS = 20;  // 50 Hz telemetry
+const uint8_t GYRO_CONFIG = 3;          // 0=250, 1=500, 2=1000, 3=2000 deg/s
 
 int16_t rollCenter = 512;
 int16_t pitchCenter = 512;
@@ -68,6 +72,17 @@ float mapStickToRate(int16_t stick, int16_t center, float maxRate) {
   }
 
   return ((float)delta / 511.0f) * maxRate;
+}
+
+//========== READ GYRO FUNCTION ==============
+void read_gyro() {
+  mpu.update();
+
+  // Axis convention used here:
+  // X -> roll rate, Y -> pitch rate, Z -> yaw rate
+  currentPitch = mpu.getGyroX();
+  currentRoll  = mpu.getGyroY();
+  currentYaw   = -mpu.getGyroZ(); //this negative accounts for ccw being positive and cw being negative naturally with the drone orientation
 }
 
 //========== READ RADIO FUNCTION ==============
@@ -158,7 +173,7 @@ void setup() {
 
     //======== SETUP AND CONFIGURE GYRO ===========
     // GYRO_SENSITIVITY 0 = +/-250 deg/s, 1 = +/-500 deg/s, 2 = +/-1000 deg/s, 3 = +/-2000 deg/s
-    mpu.setGyroConfig(3); 
+    mpu.setGyroConfig(GYRO_CONFIG); 
     byte mpuStatus = mpu.begin();
     if (mpuStatus != 0) {
       Serial.print("MPU Error: ");
@@ -177,9 +192,10 @@ void setup() {
 
 //======================================= ARDUINO LOOP FUNCTION =======================================
 void loop() {
-  // Always update gyro data each loop.
-  mpu.update();
+  //======== STEP 1 - READ GYRO SENSOR DATA ========
+  read_gyro();
 
+  //======== STEP 2 - READ PILOT COMMANDS FROM RADIO =========
   bool gotPacket = false;
   while (radio.available()) {
     radio.read(&incomingData, sizeof(incomingData));
@@ -194,7 +210,7 @@ void loop() {
     desiredThrottle = incomingData.throttle;
   }
 
-  // Print at 50 Hz for near real-time axis feedback.
+  //======= SERIAL PRINT AT 50Hz FOR DEBUGGING PURPOSES ============
   if (millis() - timer >= PRINT_INTERVAL_MS) {
     bool radioLinkOk = (millis() - lastRadioPacketMs) < 250;
     Serial.print("R:");
@@ -215,12 +231,12 @@ void loop() {
     Serial.print(",");
     Serial.print(desiredRoll, 1);
 
-    Serial.print(" Gyro XYZ:");
-    Serial.print(mpu.getGyroX(), 1);
+    Serial.print(" GyroDPS XYZ:");
+    Serial.print(currentPitch, 1);
     Serial.print(",");
-    Serial.print(mpu.getGyroY(), 1);
+    Serial.print(currentRoll, 1);
     Serial.print(",");
-    Serial.println(mpu.getGyroZ(), 1);
+    Serial.println(currentYaw, 1);
 
     timer = millis();
   }
