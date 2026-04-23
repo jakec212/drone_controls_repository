@@ -180,6 +180,28 @@ void write_motors(const MotorOutputs &m) {
   analogWrite(MOTOR4_PIN, pwmCommandToDutyCounts(m4Cmd));
 }
 
+//========== WRITE SAME PWM COMMAND TO ALL MOTORS ==============
+void write_all_motors_us(float pwmUs) {
+  int duty = pwmCommandToDutyCounts(pwmUs);
+  analogWrite(MOTOR1_PIN, duty);
+  analogWrite(MOTOR2_PIN, duty);
+  analogWrite(MOTOR3_PIN, duty);
+  analogWrite(MOTOR4_PIN, duty);
+}
+
+//========== ESC CALIBRATION SEQUENCE ==============
+void calibrate_escs() {
+  Serial.println("ESC calibration: sending 2000us for 5s...");
+  write_all_motors_us(2000.0f);
+  delay(5000);
+
+  Serial.println("ESC calibration: sending 1000us for 3s...");
+  write_all_motors_us(1000.0f);
+  delay(3000);
+
+  Serial.println("ESC calibration done.");
+}
+
 //=========== JOYSTICK CALIBRATION FUNCTION =================
 bool calibrate_radio_centers(uint16_t sampleCount = 100, uint32_t timeoutMs = 3000) {
   Serial.println("Center all sticks now. Calibrating radio centers...");
@@ -277,6 +299,9 @@ void setup() {
     analogWriteFrequency(MOTOR3_PIN, MOTOR_PWM_FREQ_HZ);
     analogWriteFrequency(MOTOR4_PIN, MOTOR_PWM_FREQ_HZ);
     analogWriteResolution(PWM_RES_BITS);
+
+    //================== ESC CALIBRATION: HIGH THEN LOW ====================
+    calibrate_escs();
 
     //=========== INITIALIZING THE PID LOOP TIMER COUNTER ============
     loopTimerUs = micros();
