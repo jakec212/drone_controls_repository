@@ -13,11 +13,6 @@
 #define PIN_PITCH    A0 
 #define PIN_ROLL     A1 
 
-// --- CALIBRATION (Adjust these based on your specific joysticks) ---
-#define A_LOW 0    
-#define A_CENTER 512   
-#define A_HIGH 1023
-
 // Radio Setup: CE on D9, CSN on D10 [cite: 17]
 RF24 radio(9, 10);
 const byte address[6] = "00001"; // Must match the receiver [cite: 19]
@@ -73,10 +68,10 @@ void loop() {
   int rawRoll     = analogRead(PIN_ROLL);
 
   // 2. Map and Store in Structure [cite: 9, 10]
-  data.yaw      = mapStick(rawYaw,      A_LOW, A_CENTER, A_HIGH);
-  data.throttle = mapStick(rawThrottle, A_LOW, A_CENTER, A_HIGH);
-  data.pitch    = mapStick(rawPitch,    A_LOW, A_CENTER, A_HIGH);
-  data.roll     = mapStick(rawRoll,     A_LOW, A_CENTER, A_HIGH);
+  data.yaw      = rawYaw;
+  data.throttle = rawThrottle;
+  data.pitch    = rawPitch;
+  data.roll     = rawRoll;
 
   // 3. Send the entire structure via Radio [cite: 23]
   bool report = radio.write(&data, sizeof(data));

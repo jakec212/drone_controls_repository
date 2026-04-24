@@ -8,12 +8,12 @@
 
 // ===== MAX PITCH, ROLL, AND YAW RATES ======
 const float MAX_RP_RATE = 60.0; // Max Roll/Pitch rate
-const float MAX_Y_RATE = 30.0;  // Max Yaw rate
+const float MAX_Y_RATE = 60.0;  // Max Yaw rate
 
 //====== PID CONSTANTS ===========
-float PRateRoll=0.6 ; float PRatePitch=PRateRoll; float PRateYaw=2;
-float IRateRoll=3.5 ; float IRatePitch=IRateRoll; float IRateYaw=12;
-float DRateRoll=0.03 ; float DRatePitch=DRateRoll; float DRateYaw=0;
+float PRateRoll=0 ; float PRatePitch=4.5; float PRateYaw=0;
+float IRateRoll=0.0 ; float IRatePitch=0.5; float IRateYaw=0;
+float DRateRoll=0.0 ; float DRatePitch=0.0; float DRateYaw=0;
 
 //====== PID STATE VARIABLES ==========
 float desiredRoll = 0.0f;
@@ -152,10 +152,10 @@ MotorOutputs mix_motors(float throttle, float rollOutput, float pitchOutput, flo
   // M1, M4 = CCW   M2, M3 = CW
   // Positive yaw command -> CW body yaw.
   // So increase CCW motors (M1,M4) and decrease CW motors (M2,M3).
-  m.m1 = throttle + rollOutput + pitchOutput + yawOutput;
-  m.m2 = throttle - rollOutput + pitchOutput - yawOutput;
-  m.m3 = throttle - rollOutput - pitchOutput - yawOutput;
-  m.m4 = throttle + rollOutput - pitchOutput + yawOutput;
+  m.m1 = throttle + rollOutput - pitchOutput + yawOutput;
+  m.m2 = throttle - rollOutput - pitchOutput - yawOutput;
+  m.m3 = throttle - rollOutput + pitchOutput - yawOutput;
+  m.m4 = throttle + rollOutput + pitchOutput + yawOutput;
   return m;
 }
 
@@ -351,49 +351,12 @@ void loop() {
 
   //======= SERIAL PRINT AT 50Hz FOR DEBUGGING PURPOSES ============
   if (millis() - timer >= PRINT_INTERVAL_MS) {
-    bool radioLinkOk = (millis() - lastRadioPacketMs) < 250;
-    Serial.print("R:");
-    Serial.print(radioLinkOk ? "OK" : "NO_PACKET");
-    Serial.print(" Raw T:");
-    Serial.print(incomingData.throttle);
-    Serial.print(" ThrCmd:");
+    Serial.print("Throttle:");
     Serial.print(throttleCommand, 1);
-    Serial.print(" Y:");
-    Serial.print(incomingData.yaw);
-    Serial.print(" P:");
-    Serial.print(incomingData.pitch);
-    Serial.print(" R:");
-    Serial.print(incomingData.roll);
-
-    Serial.print(" Cmd YPR:");
-    Serial.print(desiredYaw, 1);
-    Serial.print(",");
-    Serial.print(desiredPitch, 1);
-    Serial.print(",");
-    Serial.print(desiredRoll, 1);
-
-    Serial.print(" GyroDPS XYZ:");
+    Serial.print(" Pitch:");
     Serial.print(currentPitch, 1);
-    Serial.print(",");
-    Serial.print(currentRoll, 1);
-    Serial.print(",");
-    Serial.print(currentYaw, 1);
-
-    Serial.print(" PID RPY:");
-    Serial.print(PIDRoll, 1);
-    Serial.print(",");
-    Serial.print(PIDPitch, 1);
-    Serial.print(",");
-    Serial.print(PIDYaw, 1);
-
-    Serial.print(" Mix M1-4:");
-    Serial.print(motors.m1, 1);
-    Serial.print(",");
-    Serial.print(motors.m2, 1);
-    Serial.print(",");
-    Serial.print(motors.m3, 1);
-    Serial.print(",");
-    Serial.println(motors.m4, 1);
+    Serial.print(" PIDPitchOut:");
+    Serial.println(PIDPitch, 1);
 
     timer = millis();
   }

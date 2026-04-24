@@ -78,12 +78,20 @@ void updateAllMotors(int value, String label) {
 }
 
 void ramp(int start, int end){
-  for(int i = start; i < end; i ++){
-    updateAllMotors(i, "Ramping");
+  if(start > end){
+    for(int i = start; i >= end; i --){
+    updateAllMotors(i, "Ramping down");
     Serial.print(i);
     //little delay
-    delay(100);
+    delay(5);
+    }
   }
-  
-
+  else{
+    for(int i = start; i <= end; i ++){
+    updateAllMotors(i, "Ramping up");
+    Serial.print(i);
+    //little delay
+    delay(5);
+    }
+  }
 }

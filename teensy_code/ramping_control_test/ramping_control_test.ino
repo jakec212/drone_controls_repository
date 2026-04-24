@@ -10,6 +10,7 @@ const uint8_t GYRO_CONFIG = 3; // 0=250, 1=500, 2=1000, 3=2000 deg/s
 
 const int THROTTLE_MIN_CMD = 1000;
 const int THROTTLE_MAX_CMD = 2000;
+const int THROTTLE_DEADBAND = 10; // ignore tiny throttle jitter from controller
 
 //starting motor value
 float start_speed = 0;
@@ -98,6 +99,7 @@ int pwmCommandToDutyCounts(float pwmCommandUs) {
 
 void write_all_motors_us(float pwmUs) {
   int duty = pwmCommandToDutyCounts(pwmUs);
+  //Serial.println(duty);
   analogWrite(MOTOR1_PIN, duty);
   analogWrite(MOTOR2_PIN, duty);
   analogWrite(MOTOR3_PIN, duty);
@@ -125,7 +127,10 @@ void read_radio() {
   }
 
   if (gotPacket) {
-    desiredThrottle = incomingData.throttle;
+    int16_t newThrottle = incomingData.throttle;
+    if (abs(newThrottle - (int16_t)desiredThrottle) >= THROTTLE_DEADBAND) {
+      desiredThrottle = newThrottle;
+    }
   }
 }
 
@@ -219,10 +224,9 @@ void ramp(float start_speed, float end_speed){
   else{
     for(float i = start_speed; i <= end_speed; i ++){
     write_all_motors_us(i);
-    Serial.print(i);
+    //Serial.print(i);
     //little delay
     delay(1);
     }
   }
 }
-
